@@ -9,7 +9,7 @@
 
 CoordMode("Mouse", "Screen")   ; use absolute screen coordinates
 
-App := { clicking: false, count: 0, dark: true, picking: false }
+App := { clicking: false, count: 0, dark: true, picking: false, onTop: true }
 
 BuildGui()
 
@@ -34,9 +34,10 @@ BuildGui() {
     }
     btnText := "101010"               ; readable on the system button face
 
-    g := Gui("+AlwaysOnTop", "AutoClicker")
+    g := Gui("", "AutoClicker")
     App.gui := g
     g.OnEvent("Close", (*) => ExitApp())
+    g.Opt(App.onTop ? "+AlwaysOnTop" : "-AlwaysOnTop")
     g.BackColor := bg
     g.SetFont("s9 c" text, "Segoe UI")
     ApplyDarkTitleBar(g.Hwnd, App.dark)
@@ -84,8 +85,11 @@ BuildGui() {
 
     App.status := g.Add("Text", "x10 y418 w310 Center", "Idle")
 
-    App.darkCheck := g.Add("Checkbox", "x10 y446 " (App.dark ? "Checked" : ""), "Dark mode")
+    App.darkCheck := g.Add("Checkbox", "x10 y446 w90 " (App.dark ? "Checked" : ""), "Dark mode")
     App.darkCheck.OnEvent("Click", ToggleDark)
+
+    App.topCheck := g.Add("Checkbox", "x110 y446 w120 " (App.onTop ? "Checked" : ""), "Always on top")
+    App.topCheck.OnEvent("Click", ToggleOnTop)
 
     g.Show("w330 h474")
 
@@ -99,6 +103,12 @@ ToggleDark(*) {
     global App
     App.dark := App.darkCheck.Value
     BuildGui()
+}
+
+ToggleOnTop(*) {
+    global App
+    App.onTop := App.topCheck.Value
+    App.gui.Opt(App.onTop ? "+AlwaysOnTop" : "-AlwaysOnTop")
 }
 
 ; ---- Settings persistence across rebuilds -----------------

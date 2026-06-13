@@ -13,6 +13,8 @@ A simple dark-mode autoclicker for Windows, written in AutoHotkey v2.
 - **Repeat** — run until stopped, or stop automatically after N clicks.
 - **Dark mode** UI (dark window, inputs, and title bar) — toggle it on/off with the
   **Dark mode** checkbox; your settings are preserved when switching.
+- **Always on top** — keep the window above other windows; toggle with the
+  **Always on top** checkbox (on by default).
 
 ## Requirements
 
