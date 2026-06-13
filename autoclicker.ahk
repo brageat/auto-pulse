@@ -9,13 +9,13 @@
 
 CoordMode("Mouse", "Screen")   ; use absolute screen coordinates
 
-App := { clicking: false, count: 0, dark: true }
+App := { clicking: false, count: 0, dark: true, picking: false }
 
 BuildGui()
 
 ; ---- Global hotkeys ---------------------------------------
 Hotkey("F6", (*) => ToggleClicking())
-Hotkey("F8", CapturePosition)
+Hotkey("F8", ArmPicker)
 
 ; ---- GUI builder (re-run to re-theme) ---------------------
 BuildGui() {
@@ -65,7 +65,7 @@ BuildGui() {
     App.y := g.Add("Edit", "x145 y253 w55 Number Background" ctrlBg)
     pick := g.Add("Button", "x215 y252 w95 h24", "Pick (F8)")
     pick.SetFont("c" btnText)
-    pick.OnEvent("Click", CapturePosition)
+    pick.OnEvent("Click", ArmPicker)
 
     ; Repeat
     g.Add("GroupBox", "x10 y292 w310 h70", "Repeat")
@@ -199,13 +199,42 @@ UpdateStatus() {
         App.status.Value := App.count > 0 ? "Stopped (" App.count " clicks)" : "Idle"
 }
 
-CapturePosition(*) {
+; ---- Click-to-pick for the fixed position -----------------
+; Arm via the Pick button or F8, then click the target location;
+; that click's coordinates become the fixed position. Esc cancels.
+ArmPicker(*) {
     global App
-    MouseGetPos(&mx, &my)
+    if App.picking
+        return
+    App.picking := true
+    App.status.Value := "Click the target location (Esc to cancel)..."
+    Hotkey("~LButton", PickClick, "On")
+    Hotkey("Escape", CancelPick, "On")
+}
+
+PickClick(*) {
+    global App
+    MouseGetPos(&mx, &my, &win)
+    if (win = App.gui.Hwnd)        ; clicked on this window -> ignore, keep waiting
+        return
+    EndPick()
     App.x.Value := mx
     App.y.Value := my
     App.posFixed.Value := 1
     App.status.Value := "Captured position " mx ", " my
+}
+
+CancelPick(*) {
+    global App
+    EndPick()
+    App.status.Value := "Pick cancelled"
+}
+
+EndPick() {
+    global App
+    App.picking := false
+    Hotkey("~LButton", "Off")
+    Hotkey("Escape", "Off")
 }
 
 ; Paint the window title bar to match the theme (Win10 2004+/Win11).
