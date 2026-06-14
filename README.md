@@ -3,6 +3,11 @@
 A simple dark-mode autoclicker for Windows, written in AutoHotkey v2. It can repeatedly
 **click the mouse** or **press keys** on a timer.
 
+> [!IMPORTANT]
+> **This is an AutoHotkey v2 script, not a standalone `.exe`.** You must install
+> [AutoHotkey v2](https://www.autohotkey.com/) before it will run. See
+> [Requirements](#requirements) below.
+
 ## Features
 
 - **Action mode** — choose **Mouse click** or **Key press**; the interval, randomization
@@ -28,15 +33,22 @@ A simple dark-mode autoclicker for Windows, written in AutoHotkey v2. It can rep
 
 ## Requirements
 
-[AutoHotkey v2](https://www.autohotkey.com/) (v2.0 or later).
+**[AutoHotkey v2](https://www.autohotkey.com/) (v2.0 or later) is required** — the script
+will not run without it. AutoHotkey **v1 will not work**; this script uses v2 syntax.
 
-If it isn't installed, install it with winget:
+Install it with winget:
 
 ```powershell
 winget install AutoHotkey.AutoHotkey
 ```
 
 (or download the v2 installer from https://www.autohotkey.com/)
+
+To confirm it's installed, check that this file exists:
+
+```powershell
+Test-Path "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe"
+```
 
 ## Running
 
