@@ -10,9 +10,13 @@ A simple dark-mode autoclicker for Windows, written in AutoHotkey v2. It can rep
 - **Configurable interval** in milliseconds, with optional `+/-` randomization to vary the timing.
 - **Global hotkeys** that work even when the window isn't focused:
   - **F6** — start / stop
-  - **F8** — arm the position picker (then click the target; **Esc** cancels) — mouse mode only
+  - **F8** — arm the position picker (then click the target to add it; **Esc** cancels) — mouse mode only
 - **Mouse button & click type** — Left / Right / Middle, Single or Double click.
-- **Click location** — click at the current cursor position, or at a fixed X/Y point.
+- **Click location** — click at the current cursor position, or at one or more **fixed
+  positions**. Add a point by typing its X/Y and pressing **Add**, or by pressing **Pick**
+  (F8) and clicking the target. With several points saved, the clicker **cycles** through
+  them — one click per interval, looping back to the first. **Remove** drops the selected
+  point and **Clear** empties the list.
 - **Key press** — type the key(s) to send using AutoHotkey
   [send syntax](https://www.autohotkey.com/docs/v2/lib/Send.htm), e.g. `{Space}`, `{Enter}`,
   `{F5}`, `a`, `^c` (Ctrl+C), `!{Tab}` (Alt+Tab). Keys are sent to the **focused window**.
@@ -47,8 +51,10 @@ Double-click `autoclicker.ahk`, or from a terminal:
 1. Choose the **Action**: **Mouse click** or **Key press**.
 2. Set the **Interval** (and optional random variance).
 3. **Mouse click** — pick the **Button** and **Type** (single/double), then choose
-   **Current cursor position**, or **Fixed position** and either type the X/Y or click
-   **Pick** (or press **F8**) and click the target location on screen (**Esc** cancels).
+   **Current cursor position**, or **Fixed position(s)**. For fixed positions, add one or
+   more points: type the X/Y and press **Add**, or press **Pick** (or **F8**) and click the
+   target on screen (**Esc** cancels). With more than one point saved, clicks cycle through
+   the list in order. Use **Remove**/**Clear** to manage the list.
    **Key press** — type the **Key(s)** to send (AutoHotkey send syntax, e.g. `{Space}`).
 4. Choose **Until stopped** or **Stop after N times**.
 5. Press **Start** (or **F6**). Press **F6** again to stop.

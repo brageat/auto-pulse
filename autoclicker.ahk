@@ -10,7 +10,8 @@
 
 CoordMode("Mouse", "Screen")   ; use absolute screen coordinates
 
-App := { clicking: false, count: 0, dark: true, picking: false, onTop: true }
+App := { clicking: false, count: 0, dark: true, picking: false, onTop: true,
+         positions: [], posIndex: 0 }
 
 BuildGui()
 
@@ -69,21 +70,38 @@ BuildGui() {
     mouseCtrls.Push(App.type)
 
     ; Mouse: location (hidden in key mode -- keys go to the focused window)
-    mouseCtrls.Push(g.Add("GroupBox", "x10 y244 w310 h100", "Click Location"))
+    ; Fixed mode uses a list of one or more points; clicks cycle through them.
+    mouseCtrls.Push(g.Add("GroupBox", "x10 y244 w310 h170", "Click Location"))
     App.posCurrent := g.Add("Radio", "x22 y266", "Current cursor position")
     mouseCtrls.Push(App.posCurrent)
-    App.posFixed := g.Add("Radio", "x22 y290", "Fixed position")
+    App.posFixed := g.Add("Radio", "x22 y290", "Fixed position(s)")
     mouseCtrls.Push(App.posFixed)
-    mouseCtrls.Push(g.Add("Text", "x40 y316 w20", "X:"))
-    App.x := g.Add("Edit", "x60 y313 w55 Number Background" ctrlBg)
+
+    mouseCtrls.Push(g.Add("Text", "x40 y319 w14", "X:"))
+    App.x := g.Add("Edit", "x56 y316 w48 Number Background" ctrlBg)
     mouseCtrls.Push(App.x)
-    mouseCtrls.Push(g.Add("Text", "x125 y316 w20", "Y:"))
-    App.y := g.Add("Edit", "x145 y313 w55 Number Background" ctrlBg)
+    mouseCtrls.Push(g.Add("Text", "x110 y319 w14", "Y:"))
+    App.y := g.Add("Edit", "x126 y316 w48 Number Background" ctrlBg)
     mouseCtrls.Push(App.y)
-    pick := g.Add("Button", "x215 y312 w95 h24", "Pick (F8)")
+    addBtn := g.Add("Button", "x182 y315 w58 h23", "Add")
+    addBtn.SetFont("c" btnText)
+    addBtn.OnEvent("Click", AddTypedPosition)
+    mouseCtrls.Push(addBtn)
+    pick := g.Add("Button", "x246 y315 w64 h23", "Pick (F8)")
     pick.SetFont("c" btnText)
     pick.OnEvent("Click", ArmPicker)
     mouseCtrls.Push(pick)
+
+    App.posList := g.Add("ListBox", "x40 y346 w170 h60 Background" ctrlBg)
+    mouseCtrls.Push(App.posList)
+    removeBtn := g.Add("Button", "x218 y346 w92 h23", "Remove")
+    removeBtn.SetFont("c" btnText)
+    removeBtn.OnEvent("Click", RemoveSelectedPosition)
+    mouseCtrls.Push(removeBtn)
+    clearBtn := g.Add("Button", "x218 y373 w92 h23", "Clear")
+    clearBtn.SetFont("c" btnText)
+    clearBtn.OnEvent("Click", (*) => ClearPositions())
+    mouseCtrls.Push(clearBtn)
 
     ; Key: keystroke (occupies the same slot as the two mouse groups)
     keyCtrls.Push(g.Add("GroupBox", "x10 y156 w310 h188", "Keystroke"))
@@ -99,34 +117,35 @@ BuildGui() {
     keyCtrls.Push(g.Add("Text", "x22 y214 w295 h120", hint))
 
     ; Repeat
-    g.Add("GroupBox", "x10 y352 w310 h70", "Repeat")
-    App.repeatForever := g.Add("Radio", "x22 y374", "Until stopped")
-    App.repeatCount   := g.Add("Radio", "x22 y398", "Stop after")
-    App.countEdit := g.Add("Edit", "x115 y395 w55 Number Background" ctrlBg)
-    g.Add("Text", "x178 y398 w50", "times")
+    g.Add("GroupBox", "x10 y422 w310 h70", "Repeat")
+    App.repeatForever := g.Add("Radio", "x22 y444", "Until stopped")
+    App.repeatCount   := g.Add("Radio", "x22 y468", "Stop after")
+    App.countEdit := g.Add("Edit", "x115 y465 w55 Number Background" ctrlBg)
+    g.Add("Text", "x178 y468 w50", "times")
 
     ; Controls
-    start := g.Add("Button", "x10 y432 w150 h36", "Start (F6)")
+    start := g.Add("Button", "x10 y502 w150 h36", "Start (F6)")
     start.SetFont("c" btnText)
     start.OnEvent("Click", (*) => StartClicking())
-    stop := g.Add("Button", "x170 y432 w150 h36", "Stop (F6)")
+    stop := g.Add("Button", "x170 y502 w150 h36", "Stop (F6)")
     stop.SetFont("c" btnText)
     stop.OnEvent("Click", (*) => StopClicking())
 
-    App.status := g.Add("Text", "x10 y478 w310 Center", "Idle")
+    App.status := g.Add("Text", "x10 y548 w310 Center", "Idle")
 
-    App.darkCheck := g.Add("Checkbox", "x10 y506 w90 " (App.dark ? "Checked" : ""), "Dark mode")
+    App.darkCheck := g.Add("Checkbox", "x10 y576 w90 " (App.dark ? "Checked" : ""), "Dark mode")
     App.darkCheck.OnEvent("Click", ToggleDark)
 
-    App.topCheck := g.Add("Checkbox", "x110 y506 w120 " (App.onTop ? "Checked" : ""), "Always on top")
+    App.topCheck := g.Add("Checkbox", "x110 y576 w120 " (App.onTop ? "Checked" : ""), "Always on top")
     App.topCheck.OnEvent("Click", ToggleOnTop)
 
     App.mouseCtrls := mouseCtrls
     App.keyCtrls   := keyCtrls
 
-    g.Show("w330 h534")
+    g.Show("w330 h604")
 
     RestoreSettings(s)
+    RefreshPosList()                  ; rebuild the list view from App.positions
     ApplyActionMode()                 ; show the controls for the current mode
     UpdateStatus()
     if App.clicking                   ; resume loop if we were clicking
@@ -199,6 +218,7 @@ StartClicking() {
         return
     App.clicking := true
     App.count := 0
+    App.posIndex := 0                 ; restart the fixed-position cycle
     UpdateStatus()
     SetTimer(DoClick, -NextInterval())
 }
@@ -238,9 +258,17 @@ PerformAction() {
     if (App.type.Text = "Double")
         opt .= " 2"
     if App.posFixed.Value {
-        x := App.x.Value = "" ? 0 : App.x.Value
-        y := App.y.Value = "" ? 0 : App.y.Value
-        Click(x " " y " " opt)
+        if (App.positions.Length > 0) {        ; cycle through the saved points
+            App.posIndex += 1
+            if (App.posIndex > App.positions.Length)
+                App.posIndex := 1
+            p := App.positions[App.posIndex]
+            Click(p.x " " p.y " " opt)
+        } else if (App.x.Value != "" && App.y.Value != "") {
+            Click(App.x.Value " " App.y.Value " " opt)   ; typed-but-not-added point
+        } else {
+            Click(opt)
+        }
     } else {
         Click(opt)
     }
@@ -287,8 +315,60 @@ PickClick(*) {
     EndPick()
     App.x.Value := mx
     App.y.Value := my
+    AddPosition(mx, my)
+    App.status.Value := "Added position " mx ", " my
+}
+
+; ---- Fixed-position list ----------------------------------
+AddTypedPosition(*) {
+    global App
+    if (App.x.Value = "" || App.y.Value = "") {
+        App.status.Value := "Enter X and Y first"
+        return
+    }
+    AddPosition(App.x.Value, App.y.Value)
+    App.status.Value := "Added position " App.x.Value ", " App.y.Value
+}
+
+AddPosition(x, y) {
+    global App
+    App.positions.Push({ x: x, y: y })
     App.posFixed.Value := 1
-    App.status.Value := "Captured position " mx ", " my
+    RefreshPosList()
+    App.posList.Choose(App.positions.Length)
+}
+
+RemoveSelectedPosition(*) {
+    global App
+    idx := App.posList.Value
+    if (idx < 1)
+        return
+    App.positions.RemoveAt(idx)
+    if (App.posIndex > App.positions.Length)
+        App.posIndex := App.positions.Length
+    RefreshPosList()
+    App.status.Value := "Removed position " idx
+}
+
+ClearPositions() {
+    global App
+    App.positions := []
+    App.posIndex := 0
+    RefreshPosList()
+    App.status.Value := "Cleared positions"
+}
+
+; Rebuild the ListBox view from App.positions (the source of truth).
+RefreshPosList() {
+    global App
+    if !App.HasOwnProp("posList")
+        return
+    App.posList.Delete()
+    items := []
+    for p in App.positions
+        items.Push(A_Index ":  " p.x ", " p.y)
+    if (items.Length > 0)
+        App.posList.Add(items)
 }
 
 CancelPick(*) {
