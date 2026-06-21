@@ -2,7 +2,7 @@
 #SingleInstance Force
 
 ; ============================================================
-;  Pulse  -  AutoHotkey v2
+;  Auto-Pulse  -  AutoHotkey v2
 ;  Start/Stop hotkey is configurable (default F6)   F8 = Capture cursor position
 ;  Action mode switches between mouse clicks and key presses.
 ;  Dark mode is toggleable via the checkbox.
@@ -51,7 +51,7 @@ BuildGui() {
     }
     btnText := "101010"               ; readable on the system button face
 
-    g := Gui("", "Pulse")
+    g := Gui("", "Auto-Pulse")
     App.gui := g
     g.OnEvent("Close", (*) => ExitApp())
     g.Opt(App.onTop ? "+AlwaysOnTop" : "-AlwaysOnTop")
@@ -166,7 +166,7 @@ BuildGui() {
     App.hudCheck.OnEvent("Click", ToggleHud)
 
     ; Update status / link (click to re-check, or to open the download page)
-    App.updateLink := g.Add("Text", "x10 y660 w310 Center", "Pulse v" App.version)
+    App.updateLink := g.Add("Text", "x10 y660 w310 Center", "Auto-Pulse v" App.version)
     App.updateLink.OnEvent("Click", OnUpdateClick)
 
     App.mouseCtrls := mouseCtrls
@@ -226,7 +226,7 @@ BuildHud() {
     global App
     ; -DPIScale so positions/sizes are real pixels (matches MonitorGetWorkArea),
     ; which keeps the window fully on-screen at any display scaling.
-    h := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale", "Pulse HUD")
+    h := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale", "Auto-Pulse HUD")
     App.hudGui := h
     h.Opt("+E0x20")                  ; WS_EX_TRANSPARENT -> clicks pass through
     h.MarginX := 14, h.MarginY := 8
@@ -607,7 +607,7 @@ CheckForUpdate(silent := false) {
     remote := FetchRemoteVersion()
     if (remote = "") {                         ; offline / blocked / not found
         App.updateAvailable := false
-        SetUpdateText(silent ? "Pulse v" App.version : "Update check failed - click to retry",
+        SetUpdateText(silent ? "Auto-Pulse v" App.version : "Update check failed - click to retry",
             "999999")
         return
     }
@@ -626,12 +626,12 @@ CheckForUpdate(silent := false) {
 ; Pop up a notice with the download link whenever a newer version is found.
 NotifyUpdate() {
     global App, UPDATE_PAGE_URL
-    msg := "A new version of Pulse is available.`n`n"
+    msg := "A new version of Auto-Pulse is available.`n`n"
          . "You have:`tv" App.version "`n"
          . "Latest:`tv" App.latestVersion "`n`n"
          . "Get the new version here:`n" UPDATE_PAGE_URL "`n`n"
          . "Open the download page now?"
-    if (MsgBox(msg, "Pulse - update available", "YesNo Iconi 0x40000") = "Yes")
+    if (MsgBox(msg, "Auto-Pulse - update available", "YesNo Iconi 0x40000") = "Yes")
         Run(UPDATE_PAGE_URL)
 }
 
@@ -673,9 +673,9 @@ RefreshUpdateText() {
     if App.updateAvailable
         SetUpdateText("Update available: v" App.latestVersion " - click to download", "FFD24D")
     else if App.updateChecked
-        SetUpdateText("Pulse v" App.version " (up to date)", "6FBF73")
+        SetUpdateText("Auto-Pulse v" App.version " (up to date)", "6FBF73")
     else
-        SetUpdateText("Pulse v" App.version, "999999")
+        SetUpdateText("Auto-Pulse v" App.version, "999999")
 }
 
 SetUpdateText(txt, color) {

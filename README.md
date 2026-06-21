@@ -1,6 +1,6 @@
-# Pulse
+# Auto-Pulse
 
-**Pulse** is a simple dark-mode autoclicker for Windows, written in AutoHotkey v2. It can
+**Auto-Pulse** is a simple dark-mode autoclicker for Windows, written in AutoHotkey v2. It can
 repeatedly **click the mouse** or **press keys** on a timer.
 
 > [!IMPORTANT]
@@ -39,9 +39,9 @@ repeatedly **click the mouse** or **press keys** on a timer.
   mode), so you can see the clicker's state at a glance without the main window. **On by
   default** — toggle it with the **Show HUD** checkbox. It's always on top and *click-through*
   (clicks pass straight to whatever is underneath), so it never gets in the way.
-- **Update check** — on launch Pulse checks GitHub for a newer version. If one is found, a
+- **Update check** — on launch Auto-Pulse checks GitHub for a newer version. If one is found, a
   **popup** appears with the download link and offers to open it for you. The bottom strip
-  also reflects the result: **"Pulse vX.Y.Z (up to date)"**, or a highlighted
+  also reflects the result: **"Auto-Pulse vX.Y.Z (up to date)"**, or a highlighted
   **"Update available: vX.Y.Z — click to download"**. Click that line to open the
   [download page](https://github.com/brageat/pulse); when you're up to date, clicking it
   re-runs the check (and re-shows the popup if an update is waiting). The check is
@@ -68,10 +68,10 @@ Test-Path "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe"
 
 ## Running
 
-Double-click `pulse.ahk`, or from a terminal:
+Double-click `auto-pulse.ahk`, or from a terminal:
 
 ```powershell
-& "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe" .\pulse.ahk
+& "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe" .\auto-pulse.ahk
 ```
 
 ## Usage
