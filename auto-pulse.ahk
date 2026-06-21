@@ -16,7 +16,7 @@ CoordMode("Mouse", "Screen")   ; use absolute screen coordinates
 App := { clicking: false, count: 0, dark: true, picking: false, onTop: false,
          positions: [], posIndex: 0, toggleKey: "F6", capturing: false,
          hud: true, clickTimes: [],
-         version: "1.2.1", updateAvailable: false, latestVersion: "",
+         version: "1.2.2", updateAvailable: false, latestVersion: "",
          updateChecked: false }
 
 ; Where the update checker looks for the latest published version.
@@ -216,8 +216,8 @@ ShowHud() {
         BuildHud()
     h := App.hudGui
     if !App.hudPlaced {
-        h.Show("Hide AutoSize")             ; realize & size to its text, still hidden
-        WinGetPos(, , &w, , h.Hwnd)         ; actual window width, in real pixels
+        h.Show("Hide AutoSize")             ; size to the text in real pixels (DPI-correct)
+        WinGetPos(, , &w, , h.Hwnd)         ; actual window width incl. resize frame
         MonitorGetWorkArea(MonitorGetPrimary(), , &top, &right)
         h.Show(Format("x{} y{} NoActivate", right - w, top))   ; flush into the top-right corner
         App.hudPlaced := true
@@ -262,15 +262,17 @@ BuildHud() {
 ; the status colour is owned by UpdateHud().
 LayoutHud(w, h) {
     global App
-    if !App.HasOwnProp("hudStatus")
+    if !App.HasOwnProp("hudStatus") || !App.HasOwnProp("hudW")
         return
-    scale := w / 208.0               ; 208 = the default (auto-sized) client width
-    scale := Max(0.5, Min(scale, 5.0))
+    ; Scale to the *smaller* of the width/height ratios so the whole block always
+    ; fits -- scaling by width alone let a short window clip the bottom line.
+    scale := Min(w / App.hudW, h / App.hudH)
+    scale := Max(0.5, Min(scale, 6.0))
     m   := Round(14 * scale)         ; side margin
-    cw  := w - 2 * m
+    cw  := Max(10, w - 2 * m)
     s1  := Round(15 * scale), s2 := Round(8 * scale), s3 := Round(9 * scale)
-    h1  := Round(s1 * 2.0),   h2 := Round(s2 * 2.0),   h3 := Round(s3 * 2.0)
-    gap := Round(4 * scale)
+    h1  := Round(s1 * 1.9),   h2 := Round(s2 * 1.9),   h3 := Round(s3 * 1.9)
+    gap := Round(2 * scale)
     y   := Max(0, (h - (h1 + h2 + h3 + 2 * gap)) // 2)   ; centre the block vertically
 
     App.hudStatus.SetFont("s" s1 " bold", "Segoe UI"), App.hudStatus.Move(m, y, cw, h1)
@@ -280,9 +282,19 @@ LayoutHud(w, h) {
     App.hudCps.SetFont("s" s3),                        App.hudCps.Move(m, y, cw, h3)
 }
 
-; Relayout as the window is dragged-resized (skip while minimised).
+; Relayout as the window is dragged-resized. The first event after the
+; (auto-sized) window appears captures that DPI-correct size as the scaling
+; baseline and leaves the natural layout untouched; only genuine user resizes
+; re-flow through LayoutHud, so the default HUD stays pixel-perfect.
 HudSize(thisGui, minMax, w, h) {
-    if minMax = -1
+    global App
+    if (minMax = -1 || w < 1 || h < 1)
+        return
+    if !App.HasOwnProp("hudW") {     ; first real size = the auto-sized baseline
+        App.hudW := w, App.hudH := h
+        return
+    }
+    if (w = App.hudW && h = App.hudH)   ; unchanged from baseline -> keep natural layout
         return
     LayoutHud(w, h)
     UpdateHud()                      ; re-apply the live status colour
