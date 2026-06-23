@@ -5,6 +5,8 @@
 ;  Auto-Pulse  -  AutoHotkey v2
 ;  Start/Stop hotkey is configurable (default F6)   F8 = Capture cursor position
 ;  Action mode switches between mouse clicks and key presses.
+;  Hold: "Hold for (ms)" presses-and-holds each pulse; "Hold until stopped"
+;  presses down on Start and releases on Stop (works for mouse and keys).
 ;  Dark mode is toggleable via the checkbox.
 ;  A small on-screen HUD (top-right corner) shows on/off status.
 ;  Checks GitHub on launch and reports if a newer version exists.
@@ -14,8 +16,8 @@ CoordMode("Mouse", "Screen")   ; use absolute screen coordinates
 
 App := { clicking: false, count: 0, dark: true, picking: false, onTop: false,
          positions: [], posIndex: 0, toggleKey: "F6", capturing: false,
-         hud: true, clickTimes: [],
-         version: "1.2.0", updateAvailable: false, latestVersion: "",
+         hud: true, clickTimes: [], held: "",
+         version: "1.3.0", updateAvailable: false, latestVersion: "",
          updateChecked: false }
 
 ; Where the update checker looks for the latest published version.
@@ -29,6 +31,7 @@ if App.hud                            ; HUD is shown by default
 ; ---- Global hotkeys ---------------------------------------
 SetToggleHotkey(App.toggleKey)        ; start/stop (user-configurable via "Set...")
 Hotkey("F8", CaptureCursorPos)        ; F8 grabs the cursor's position instantly
+OnExit((*) => ReleaseHeld())          ; never leave a key/button stuck down on exit
 
 ; Check GitHub for a newer version shortly after launch (off the UI thread's
 ; critical path; -1 => run once). Silent so a failed check stays quiet.
@@ -39,6 +42,7 @@ BuildGui() {
     global App
 
     SetTimer(DoClick, 0)              ; pause any active loop during rebuild
+    SetTimer(ReleasePhase, 0)
     s := SnapshotSettings()           ; keep current values across the rebuild
     if App.HasOwnProp("gui")
         App.gui.Destroy()
@@ -53,7 +57,7 @@ BuildGui() {
 
     g := Gui("", "Auto-Pulse")
     App.gui := g
-    g.OnEvent("Close", (*) => ExitApp())
+    g.OnEvent("Close", (*) => DoExit())
     g.Opt(App.onTop ? "+AlwaysOnTop" : "-AlwaysOnTop")
     g.BackColor := bg
     g.SetFont("s9 c" text, "Segoe UI")
@@ -68,118 +72,122 @@ BuildGui() {
     App.action := g.Add("DropDownList", "x115 y28 w150 Background" ctrlBg, ["Mouse click", "Key press"])
     App.action.OnEvent("Change", ApplyActionMode)
 
-    ; Interval
-    g.Add("GroupBox", "x10 y68 w310 h80", "Click Interval")
+    ; Interval (+ hold options -- both apply to mouse and key modes)
+    g.Add("GroupBox", "x10 y68 w310 h132", "Click Interval")
     g.Add("Text", "x22 y92 w90", "Interval (ms):")
     App.interval := g.Add("Edit", "x115 y89 w80 Number Background" ctrlBg)
     g.Add("Text", "x22 y120 w90", "Random +/- (ms):")
     App.random := g.Add("Edit", "x115 y117 w80 Number Background" ctrlBg)
+    g.Add("Text", "x22 y148 w90", "Hold for (ms):")
+    App.holdEdit := g.Add("Edit", "x115 y145 w80 Number Background" ctrlBg)
+    g.Add("Text", "x200 y148 w112", "(0 = instant tap)")
+    App.holdCheck := g.Add("Checkbox", "x22 y174 w290", "Hold until stopped (release on Stop)")
 
     ; Mouse: click options (same vertical slot as the Keystroke group)
-    mouseCtrls.Push(g.Add("GroupBox", "x10 y156 w310 h80", "Click Options"))
-    mouseCtrls.Push(g.Add("Text", "x22 y180 w60", "Button:"))
-    App.button := g.Add("DropDownList", "x115 y177 w90 Background" ctrlBg, ["Left", "Right", "Middle"])
+    mouseCtrls.Push(g.Add("GroupBox", "x10 y208 w310 h80", "Click Options"))
+    mouseCtrls.Push(g.Add("Text", "x22 y232 w60", "Button:"))
+    App.button := g.Add("DropDownList", "x115 y229 w90 Background" ctrlBg, ["Left", "Right", "Middle"])
     mouseCtrls.Push(App.button)
-    mouseCtrls.Push(g.Add("Text", "x22 y208 w60", "Type:"))
-    App.type := g.Add("DropDownList", "x115 y205 w90 Background" ctrlBg, ["Single", "Double"])
+    mouseCtrls.Push(g.Add("Text", "x22 y260 w60", "Type:"))
+    App.type := g.Add("DropDownList", "x115 y257 w90 Background" ctrlBg, ["Single", "Double"])
     mouseCtrls.Push(App.type)
 
     ; Mouse: location (hidden in key mode -- keys go to the focused window)
     ; Fixed mode uses a list of one or more points; clicks cycle through them.
-    mouseCtrls.Push(g.Add("GroupBox", "x10 y244 w310 h170", "Click Location"))
-    App.posCurrent := g.Add("Radio", "x22 y266", "Current cursor position")
+    mouseCtrls.Push(g.Add("GroupBox", "x10 y296 w310 h170", "Click Location"))
+    App.posCurrent := g.Add("Radio", "x22 y318", "Current cursor position")
     mouseCtrls.Push(App.posCurrent)
-    App.posFixed := g.Add("Radio", "x22 y290", "Fixed position(s)")
+    App.posFixed := g.Add("Radio", "x22 y342", "Fixed position(s)")
     mouseCtrls.Push(App.posFixed)
 
-    mouseCtrls.Push(g.Add("Text", "x40 y319 w14", "X:"))
-    App.x := g.Add("Edit", "x56 y316 w48 Number Background" ctrlBg)
+    mouseCtrls.Push(g.Add("Text", "x40 y371 w14", "X:"))
+    App.x := g.Add("Edit", "x56 y368 w48 Number Background" ctrlBg)
     mouseCtrls.Push(App.x)
-    mouseCtrls.Push(g.Add("Text", "x110 y319 w14", "Y:"))
-    App.y := g.Add("Edit", "x126 y316 w48 Number Background" ctrlBg)
+    mouseCtrls.Push(g.Add("Text", "x110 y371 w14", "Y:"))
+    App.y := g.Add("Edit", "x126 y368 w48 Number Background" ctrlBg)
     mouseCtrls.Push(App.y)
-    addBtn := g.Add("Button", "x182 y315 w58 h23", "Add")
+    addBtn := g.Add("Button", "x182 y367 w58 h23", "Add")
     addBtn.SetFont("c" btnText)
     addBtn.OnEvent("Click", AddTypedPosition)
     mouseCtrls.Push(addBtn)
-    pick := g.Add("Button", "x246 y315 w64 h23", "Pick (F8)")
+    pick := g.Add("Button", "x246 y367 w64 h23", "Pick (F8)")
     pick.SetFont("c" btnText)
     pick.OnEvent("Click", ArmPicker)
     mouseCtrls.Push(pick)
 
-    App.posList := g.Add("ListBox", "x40 y346 w170 h60 Background" ctrlBg)
+    App.posList := g.Add("ListBox", "x40 y398 w170 h60 Background" ctrlBg)
     mouseCtrls.Push(App.posList)
-    removeBtn := g.Add("Button", "x218 y346 w92 h23", "Remove")
+    removeBtn := g.Add("Button", "x218 y398 w92 h23", "Remove")
     removeBtn.SetFont("c" btnText)
     removeBtn.OnEvent("Click", RemoveSelectedPosition)
     mouseCtrls.Push(removeBtn)
-    clearBtn := g.Add("Button", "x218 y373 w92 h23", "Clear")
+    clearBtn := g.Add("Button", "x218 y425 w92 h23", "Clear")
     clearBtn.SetFont("c" btnText)
     clearBtn.OnEvent("Click", (*) => ClearPositions())
     mouseCtrls.Push(clearBtn)
 
     ; Key: keystroke (occupies the same slot as the two mouse groups)
-    keyCtrls.Push(g.Add("GroupBox", "x10 y156 w310 h188", "Keystroke"))
-    keyCtrls.Push(g.Add("Text", "x22 y182 w55", "Key(s):"))
-    App.keysEdit := g.Add("Edit", "x115 y179 w195 Background" ctrlBg)
+    keyCtrls.Push(g.Add("GroupBox", "x10 y208 w310 h188", "Keystroke"))
+    keyCtrls.Push(g.Add("Text", "x22 y234 w55", "Key(s):"))
+    App.keysEdit := g.Add("Edit", "x115 y231 w195 Background" ctrlBg)
     keyCtrls.Push(App.keysEdit)
     hint := "Sent to the focused window using AutoHotkey send syntax.`n`n"
           . "Examples:`n"
           . "    {Space}   {Enter}   {Tab}   {F5}`n"
           . "    a    ^c = Ctrl+C    !{Tab} = Alt+Tab`n`n"
-          . "Tip: in key mode press F6 to start after`n"
-          . "focusing the target window."
-    keyCtrls.Push(g.Add("Text", "x22 y214 w295 h120", hint))
+          . "Hold modes hold a single key (e.g. a, {Space}, {w}).`n"
+          . "Tip: press F6 to start after focusing the target window."
+    keyCtrls.Push(g.Add("Text", "x22 y266 w295 h120", hint))
 
     ; Repeat
-    g.Add("GroupBox", "x10 y422 w310 h70", "Repeat")
-    App.repeatForever := g.Add("Radio", "x22 y444", "Until stopped")
-    App.repeatCount   := g.Add("Radio", "x22 y468", "Stop after")
-    App.countEdit := g.Add("Edit", "x115 y465 w55 Number Background" ctrlBg)
-    g.Add("Text", "x178 y468 w50", "times")
+    g.Add("GroupBox", "x10 y474 w310 h70", "Repeat")
+    App.repeatForever := g.Add("Radio", "x22 y496", "Until stopped")
+    App.repeatCount   := g.Add("Radio", "x22 y520", "Stop after")
+    App.countEdit := g.Add("Edit", "x115 y517 w55 Number Background" ctrlBg)
+    g.Add("Text", "x178 y520 w50", "times")
 
     ; Hotkey -- the global start/stop key (configurable)
-    g.Add("GroupBox", "x10 y500 w310 h48", "Start/Stop Hotkey")
-    g.Add("Text", "x22 y523 w52", "Hotkey:")
-    App.hotkeyDisplay := g.Add("Text", "x80 y521 w150 Center Border", App.toggleKey)
-    setHk := g.Add("Button", "x238 y518 w72 h23", "Set...")
+    g.Add("GroupBox", "x10 y552 w310 h48", "Start/Stop Hotkey")
+    g.Add("Text", "x22 y575 w52", "Hotkey:")
+    App.hotkeyDisplay := g.Add("Text", "x80 y573 w150 Center Border", App.toggleKey)
+    setHk := g.Add("Button", "x238 y570 w72 h23", "Set...")
     setHk.SetFont("c" btnText)
     setHk.OnEvent("Click", CaptureToggleHotkey)
 
     ; Controls
-    App.startBtn := g.Add("Button", "x10 y558 w150 h36", "Start (" App.toggleKey ")")
+    App.startBtn := g.Add("Button", "x10 y610 w150 h36", "Start (" App.toggleKey ")")
     App.startBtn.SetFont("c" btnText)
     App.startBtn.OnEvent("Click", (*) => StartClicking())
-    App.stopBtn := g.Add("Button", "x170 y558 w150 h36", "Stop (" App.toggleKey ")")
+    App.stopBtn := g.Add("Button", "x170 y610 w150 h36", "Stop (" App.toggleKey ")")
     App.stopBtn.SetFont("c" btnText)
     App.stopBtn.OnEvent("Click", (*) => StopClicking())
 
-    App.status := g.Add("Text", "x10 y604 w310 Center", "Idle")
+    App.status := g.Add("Text", "x10 y656 w310 Center", "Idle")
 
-    App.darkCheck := g.Add("Checkbox", "x10 y632 w90 " (App.dark ? "Checked" : ""), "Dark mode")
+    App.darkCheck := g.Add("Checkbox", "x10 y684 w90 " (App.dark ? "Checked" : ""), "Dark mode")
     App.darkCheck.OnEvent("Click", ToggleDark)
 
-    App.topCheck := g.Add("Checkbox", "x110 y632 w120 " (App.onTop ? "Checked" : ""), "Always on top")
+    App.topCheck := g.Add("Checkbox", "x110 y684 w120 " (App.onTop ? "Checked" : ""), "Always on top")
     App.topCheck.OnEvent("Click", ToggleOnTop)
 
-    App.hudCheck := g.Add("Checkbox", "x240 y632 w85 " (App.hud ? "Checked" : ""), "Show HUD")
+    App.hudCheck := g.Add("Checkbox", "x240 y684 w85 " (App.hud ? "Checked" : ""), "Show HUD")
     App.hudCheck.OnEvent("Click", ToggleHud)
 
     ; Update status / link (click to re-check, or to open the download page)
-    App.updateLink := g.Add("Text", "x10 y660 w310 Center", "Auto-Pulse v" App.version)
+    App.updateLink := g.Add("Text", "x10 y712 w310 Center", "Auto-Pulse v" App.version)
     App.updateLink.OnEvent("Click", OnUpdateClick)
 
     App.mouseCtrls := mouseCtrls
     App.keyCtrls   := keyCtrls
 
-    g.Show("w330 h688")
+    g.Show("w330 h740")
 
     RestoreSettings(s)
     RefreshPosList()                  ; rebuild the list view from App.positions
     ApplyActionMode()                 ; show the controls for the current mode
     RefreshUpdateText()               ; keep any update notice across re-themes
     UpdateStatus()
-    if App.clicking                   ; resume loop if we were clicking
+    if (App.clicking && !HoldUntilStopped())   ; resume loop (a continuous hold stays down, no loop)
         SetTimer(DoClick, -NextInterval())
 }
 
@@ -249,16 +257,18 @@ UpdateHud() {
         return
     noun := App.action.Value = 2 ? "presses" : "clicks"
     unit := App.action.Value = 2 ? "kps" : "cps"
+    holding := App.clicking && HoldUntilStopped()
     if App.clicking {
         App.hudStatus.SetFont("c33DD55")          ; green = running
-        App.hudStatus.Text := "ON"
-        cps := CurrentCps()
+        App.hudStatus.Text := holding ? "HOLD" : "ON"
+        cps := holding ? 0.0 : CurrentCps()
     } else {
         App.hudStatus.SetFont("c888888")          ; gray = stopped
         App.hudStatus.Text := "OFF"
         cps := 0.0
     }
-    App.hudCount.Text := (App.clicking || App.count > 0) ? App.count " " noun : "Idle"
+    App.hudCount.Text := holding ? "Holding"
+        : (App.clicking || App.count > 0) ? App.count " " noun : "Idle"
     App.hudCps.Text := Format("{:.1f} {}", cps, unit)
 }
 
@@ -278,13 +288,15 @@ SnapshotSettings() {
     if !App.HasOwnProp("interval")    ; first build -> defaults
         return { interval: 100, random: 0, button: 1, type: 1,
                  fixed: false, x: "", y: "", repeatCount: false, count: 100,
-                 action: 1, keys: "", hotkey: App.toggleKey }
+                 action: 1, keys: "", hotkey: App.toggleKey,
+                 holdMs: 0, holdUntil: false }
     return { interval: App.interval.Value,   random: App.random.Value,
              button: App.button.Value,       type: App.type.Value,
              fixed: App.posFixed.Value,       x: App.x.Value, y: App.y.Value,
              repeatCount: App.repeatCount.Value, count: App.countEdit.Value,
              action: App.action.Value,       keys: App.keysEdit.Value,
-             hotkey: App.toggleKey }
+             hotkey: App.toggleKey,
+             holdMs: App.holdEdit.Value,     holdUntil: App.holdCheck.Value }
 }
 
 RestoreSettings(s) {
@@ -301,6 +313,8 @@ RestoreSettings(s) {
     App.action.Choose(s.action)
     App.keysEdit.Value := s.keys
     App.hotkeyDisplay.Text := s.hotkey
+    App.holdEdit.Value := s.holdMs
+    App.holdCheck.Value := s.holdUntil
 }
 
 ; ---- Configurable start/stop hotkey -----------------------
@@ -409,6 +423,11 @@ StartClicking() {
     App.count := 0
     App.clickTimes := []              ; reset the CPS measurement window
     App.posIndex := 0                 ; restart the fixed-position cycle
+    if HoldUntilStopped() {           ; press once and hold until Stop
+        PressDownHeld()
+        UpdateStatus()
+        return
+    }
     UpdateStatus()
     SetTimer(DoClick, -NextInterval())
 }
@@ -419,14 +438,40 @@ StopClicking() {
         return
     App.clicking := false
     SetTimer(DoClick, 0)
+    SetTimer(ReleasePhase, 0)         ; cancel a pending pulse release
+    ReleaseHeld()                     ; let go of anything we're holding down
     UpdateStatus()
 }
 
+; One pulse. With a hold time we press down now and release on a follow-up
+; timer (keeping the GUI responsive during the hold); otherwise it's an
+; instant tap. Counting happens once the pulse is complete.
 DoClick() {
     global App
     if !App.clicking
         return
-    PerformAction()
+    if (HoldMs() > 0) {
+        PressDownHeld()
+        SetTimer(ReleasePhase, -HoldMs())
+        return                        ; AfterPulse runs from ReleasePhase
+    }
+    PerformTap()
+    AfterPulse()
+}
+
+; End of a held pulse: release, then count and schedule the next pulse.
+ReleasePhase() {
+    global App
+    ReleaseHeld()
+    if !App.clicking                  ; stopped during the hold -> done
+        return
+    AfterPulse()
+}
+
+; Bookkeeping shared by tap and held pulses: tally, honor the count limit,
+; and re-arm the next pulse.
+AfterPulse() {
+    global App
     App.count += 1
     RecordClick()
     UpdateStatus()
@@ -437,7 +482,8 @@ DoClick() {
     SetTimer(DoClick, -NextInterval())   ; re-arm with fresh (possibly random) delay
 }
 
-PerformAction() {
+; Instant tap -- the original click/keypress behavior (no hold).
+PerformTap() {
     global App
     if (App.action.Value = 2) {       ; Key press
         keys := App.keysEdit.Value
@@ -448,21 +494,91 @@ PerformAction() {
     opt := App.button.Text
     if (App.type.Text = "Double")
         opt .= " 2"
-    if App.posFixed.Value {
-        if (App.positions.Length > 0) {        ; cycle through the saved points
-            App.posIndex += 1
-            if (App.posIndex > App.positions.Length)
-                App.posIndex := 1
-            p := App.positions[App.posIndex]
-            Click(p.x " " p.y " " opt)
-        } else if (App.x.Value != "" && App.y.Value != "") {
-            Click(App.x.Value " " App.y.Value " " opt)   ; typed-but-not-added point
-        } else {
-            Click(opt)
-        }
-    } else {
+    pt := App.posFixed.Value ? NextFixedPoint() : ""
+    if (pt)
+        Click(pt.x " " pt.y " " opt)
+    else
         Click(opt)
+}
+
+; Press the configured action down and remember exactly what we pressed, so
+; the release targets the same thing even if the user changes the controls
+; mid-hold. No-op if something is already held.
+PressDownHeld() {
+    global App
+    if (App.held)
+        return
+    if (App.action.Value = 2) {       ; key
+        tok := HoldToken(App.keysEdit.Value)
+        if (tok = "")
+            return
+        Send("{" tok " down}")
+        App.held := { kind: "key", token: tok }
+        return
     }
+    btn := App.button.Text            ; mouse
+    pt := App.posFixed.Value ? NextFixedPoint() : ""
+    if (pt)
+        Click(pt.x " " pt.y " " btn " Down")
+    else
+        Click(btn " Down")
+    App.held := { kind: "mouse", button: btn }
+}
+
+; Release whatever PressDownHeld pressed. Safe to call when nothing is held.
+ReleaseHeld() {
+    global App
+    if (!App.held)
+        return
+    h := App.held
+    App.held := ""
+    if (h.kind = "key")
+        Send("{" h.token " up}")
+    else
+        Click(h.button " Up")
+}
+
+; The next fixed point to act on: cycle through saved points, or fall back to
+; a typed-but-not-added X/Y. Returns "" when there's no usable point.
+NextFixedPoint() {
+    global App
+    if (App.positions.Length > 0) {
+        App.posIndex += 1
+        if (App.posIndex > App.positions.Length)
+            App.posIndex := 1
+        return App.positions[App.posIndex]
+    }
+    if (App.x.Value != "" && App.y.Value != "")
+        return { x: App.x.Value, y: App.y.Value }
+    return ""
+}
+
+HoldMs() {
+    global App
+    return App.holdEdit.Value = "" ? 0 : Integer(App.holdEdit.Value)
+}
+
+HoldUntilStopped() {
+    global App
+    return App.holdCheck.Value
+}
+
+; Normalize the key field to a single holdable token: "a" -> "a",
+; "{Space}" -> "Space", "{w}" -> "w". Modifier combos (^c) and multi-key
+; sequences aren't holdable, so reject those (caller falls back to nothing).
+HoldToken(keys) {
+    keys := Trim(keys)
+    if (SubStr(keys, 1, 1) = "{" && SubStr(keys, -1) = "}")
+        keys := Trim(SubStr(keys, 2, StrLen(keys) - 2))
+    if (keys = "" || RegExMatch(keys, "[\^!+#{}\s]"))
+        return ""
+    return keys
+}
+
+; Release any held key/button before quitting so nothing gets stuck down.
+DoExit(*) {
+    ReleaseHeld()
+    ExitApp()
 }
 
 NextInterval() {
@@ -498,10 +614,15 @@ CurrentCps() {
 UpdateStatus() {
     global App
     noun := App.action.Value = 2 ? "presses" : "clicks"
-    if App.clicking
-        App.status.Value := "Running... (" App.count " " noun ")"
-    else
+    if App.clicking {
+        if HoldUntilStopped()
+            App.status.Value := App.action.Value = 2
+                ? "Holding key..." : "Holding " App.button.Text " button..."
+        else
+            App.status.Value := "Running... (" App.count " " noun ")"
+    } else {
         App.status.Value := App.count > 0 ? "Stopped (" App.count " " noun ")" : "Idle"
+    }
     UpdateHud()
 }
 

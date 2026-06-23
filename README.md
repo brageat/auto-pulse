@@ -1,7 +1,7 @@
 # Auto-Pulse
 
 **Auto-Pulse** is a simple dark-mode autoclicker for Windows, written in AutoHotkey v2. It can
-repeatedly **click the mouse** or **press keys** on a timer.
+repeatedly **click the mouse** or **press keys** on a timer, or **hold** a button/key down.
 
 > [!IMPORTANT]
 > **This is an AutoHotkey v2 script, not a standalone `.exe`.** You must install
@@ -13,6 +13,15 @@ repeatedly **click the mouse** or **press keys** on a timer.
 - **Action mode** — choose **Mouse click** or **Key press**; the interval, randomization
   and repeat settings drive whichever is selected.
 - **Configurable interval** in milliseconds, with optional `+/-` randomization to vary the timing.
+- **Hold** — press and *hold* the mouse button or key instead of just tapping (works in both
+  modes):
+  - **Hold for (ms)** — each pulse presses down, holds for that many milliseconds, then releases
+    before the next interval. `0` (the default) means an instant tap — the classic click/keypress.
+  - **Hold until stopped** — presses down once on **Start** and keeps it held until you **Stop**
+    (great for game movement, mining, etc.). The interval/random/repeat settings are ignored
+    while this is on. Whatever is held is always released on Stop and on exit, so nothing gets
+    stuck down. For keys this holds a **single** key (e.g. `a`, `{Space}`, `{w}`); modifier
+    combos like `^c` aren't holdable.
 - **Global hotkeys** that work even when the window isn't focused:
   - **Start / stop** — **F6** by default, and **rebindable** (see below)
   - **F8** — arm the position picker (then click the target to add it; **Esc** cancels) — mouse mode only
@@ -77,7 +86,9 @@ Double-click `auto-pulse.ahk`, or from a terminal:
 ## Usage
 
 1. Choose the **Action**: **Mouse click** or **Key press**.
-2. Set the **Interval** (and optional random variance).
+2. Set the **Interval** (and optional random variance). To press-and-hold instead of tapping,
+   set **Hold for (ms)** to the hold time per pulse, or tick **Hold until stopped** to hold
+   continuously until you stop.
 3. **Mouse click** — pick the **Button** and **Type** (single/double), then choose
    **Current cursor position**, or **Fixed position(s)**. For fixed positions, add one or
    more points: type the X/Y and press **Add**, or press **Pick** (or **F8**) and click the
