@@ -76,7 +76,13 @@ Test-Path "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe"
 
 ## Running
 
-Double-click `auto-pulse.ahk`, or from a terminal:
+**Easiest:** double-click **`Launch Auto-Pulse.vbs`**. It starts Auto-Pulse if AutoHotkey v2 is
+installed, and if it isn't, it shows a reminder (with an **OK** button) pointing you to the
+[AutoHotkey download](https://www.autohotkey.com/). The `.ahk` can't show that reminder itself,
+because it needs AutoHotkey in order to run at all.
+
+If you already have AutoHotkey, you can also just double-click `auto-pulse.ahk`, or run it from a
+terminal:
 
 ```powershell
 & "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe" .\auto-pulse.ahk
