@@ -4,6 +4,15 @@ All the notable stuff that's happened to Auto-Pulse. Version numbers match the
 `VERSION` file the in-app updater checks, so bumping this is what nudges older
 copies to update.
 
+## v1.4.1 (2026-07-24)
+
+### Fixed
+- **Antivirus false positive** on the download. The launcher was a `.vbs`, and a
+  VBScript that launches a program is a pattern antivirus engines flag on sight —
+  which made `auto-pulse-main.zip` show up as "virus detected." Replaced it with
+  **`Launch Auto-Pulse.bat`**, which does the same thing (start the app, or remind
+  you to install AutoHotkey with an OK button) without tripping the scanners.
+
 ## v1.4.0 — "Iron Grip" (2026-07-24)
 
 Auto-Pulse learns to *hold on*. 💪

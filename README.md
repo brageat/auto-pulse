@@ -76,7 +76,7 @@ Test-Path "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe"
 
 ## Running
 
-**Easiest:** double-click **`Launch Auto-Pulse.vbs`**. It starts Auto-Pulse if AutoHotkey v2 is
+**Easiest:** double-click **`Launch Auto-Pulse.bat`**. It starts Auto-Pulse if AutoHotkey v2 is
 installed, and if it isn't, it shows a reminder (with an **OK** button) pointing you to the
 [AutoHotkey download](https://www.autohotkey.com/). The `.ahk` can't show that reminder itself,
 because it needs AutoHotkey in order to run at all.

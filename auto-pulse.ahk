@@ -17,7 +17,7 @@ CoordMode("Mouse", "Screen")   ; use absolute screen coordinates
 App := { clicking: false, count: 0, dark: true, picking: false, onTop: false,
          positions: [], posIndex: 0, toggleKey: "F6", capturing: false,
          hud: true, clickTimes: [], held: "",
-         version: "1.4.0", updateAvailable: false, latestVersion: "",
+         version: "1.4.1", updateAvailable: false, latestVersion: "",
          updateChecked: false }
 
 ; Where the update checker looks for the latest published version.
