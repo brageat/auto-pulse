@@ -5,8 +5,8 @@
 ;  Auto-Pulse  -  AutoHotkey v2
 ;  Start/Stop hotkey is configurable (default F6)   F8 = Capture cursor position
 ;  Action mode switches between mouse clicks and key presses.
-;  Hold (mouse mode only): "Hold for (ms)" presses-and-holds each pulse;
-;  "Hold until stopped" presses the button down on Start, releases on Stop.
+;  Hold: "Hold for (ms)" presses-and-holds each pulse; "Hold until stopped"
+;  presses down on Start and releases on Stop (mouse buttons and keys).
 ;  Dark mode is toggleable via the checkbox.
 ;  A small on-screen HUD (top-right corner) shows on/off status.
 ;  Checks GitHub on launch and reports if a newer version exists.
@@ -17,7 +17,7 @@ CoordMode("Mouse", "Screen")   ; use absolute screen coordinates
 App := { clicking: false, count: 0, dark: true, picking: false, onTop: false,
          positions: [], posIndex: 0, toggleKey: "F6", capturing: false,
          hud: true, clickTimes: [], held: "",
-         version: "1.3.2", updateAvailable: false, latestVersion: "",
+         version: "1.4.0", updateAvailable: false, latestVersion: "",
          updateChecked: false }
 
 ; Where the update checker looks for the latest published version.
@@ -72,21 +72,16 @@ BuildGui() {
     App.action := g.Add("DropDownList", "x115 y28 w150 Background" ctrlBg, ["Mouse click", "Key press"])
     App.action.OnEvent("Change", ApplyActionMode)
 
-    ; Interval (always) + hold options (mouse-click mode only -- hold acts on a
-    ; mouse button, so it's hidden in key mode). Two group boxes share the slot:
-    ; a tall one for mouse mode (room for the hold rows) and a short one for key
-    ; mode (interval/random only). Only the box for the active mode is shown.
-    mouseCtrls.Push(g.Add("GroupBox", "x10 y68 w310 h132", "Click Interval"))
-    keyCtrls.Push(g.Add("GroupBox", "x10 y68 w310 h80", "Click Interval"))
+    ; Interval + hold options (apply to both mouse clicks and key presses).
+    g.Add("GroupBox", "x10 y68 w310 h132", "Interval")
     g.Add("Text", "x22 y92 w90", "Interval (ms):")
     App.interval := g.Add("Edit", "x115 y89 w80 Number Background" ctrlBg)
     g.Add("Text", "x22 y120 w90", "Random +/-:")
     App.random := g.Add("Edit", "x115 y117 w80 Number Background" ctrlBg)
-    holdLabel := g.Add("Text", "x22 y148 w90", "Hold for (ms):")
+    g.Add("Text", "x22 y148 w90", "Hold for (ms):")
     App.holdEdit := g.Add("Edit", "x115 y145 w80 Number Background" ctrlBg)
-    holdNote := g.Add("Text", "x200 y148 w112", "(0 = instant click)")
+    g.Add("Text", "x200 y148 w112", "(0 = instant tap)")
     App.holdCheck := g.Add("Checkbox", "x22 y174 w290", "Hold until stopped (release on Stop)")
-    mouseCtrls.Push(holdLabel, App.holdEdit, holdNote, App.holdCheck)
 
     ; Mouse: click options (same vertical slot as the Keystroke group)
     mouseCtrls.Push(g.Add("GroupBox", "x10 y208 w310 h80", "Click Options"))
@@ -131,19 +126,18 @@ BuildGui() {
     clearBtn.OnEvent("Click", (*) => ClearPositions())
     mouseCtrls.Push(clearBtn)
 
-    ; Key: keystroke (occupies the same slot as the two mouse groups). Sits
-    ; higher than the mouse groups because key mode has no hold rows above it.
-    keyCtrls.Push(g.Add("GroupBox", "x10 y156 w310 h188", "Keystroke"))
-    keyCtrls.Push(g.Add("Text", "x22 y182 w55", "Key(s):"))
-    App.keysEdit := g.Add("Edit", "x115 y179 w195 Background" ctrlBg)
+    ; Key: keystroke (occupies the same slot as the two mouse groups).
+    keyCtrls.Push(g.Add("GroupBox", "x10 y208 w310 h188", "Keystroke"))
+    keyCtrls.Push(g.Add("Text", "x22 y234 w55", "Key(s):"))
+    App.keysEdit := g.Add("Edit", "x115 y231 w195 Background" ctrlBg)
     keyCtrls.Push(App.keysEdit)
     hint := "Sent to the focused window using AutoHotkey send syntax.`n`n"
           . "Examples:`n"
           . "    {Space}   {Enter}   {Tab}   {F5}`n"
           . "    a    ^c = Ctrl+C    !{Tab} = Alt+Tab`n`n"
-          . "Tip: in key mode press F6 to start after`n"
-          . "focusing the target window."
-    keyCtrls.Push(g.Add("Text", "x22 y214 w295 h120", hint))
+          . "Hold works with one key (e.g. a, {Space}, {w}),`n"
+          . "optionally with ^ ! + # modifiers."
+    keyCtrls.Push(g.Add("Text", "x22 y266 w295 h120", hint))
 
     ; Repeat
     g.Add("GroupBox", "x10 y474 w310 h70", "Repeat")
@@ -507,20 +501,32 @@ PerformTap() {
         Click(opt)
 }
 
-; Press the configured mouse button down and remember which one, so the
-; release targets the same button even if the user changes it mid-hold.
-; No-op if something is already held. (Hold is mouse-only.)
+; Press the configured action down and remember what to release, so a later
+; release targets the same thing even if the user changes controls mid-hold.
+; No-op if something is already held.
 PressDownHeld() {
     global App
     if (App.held)
         return
-    btn := App.button.Text
+    if (App.action.Value = 2) {           ; key press
+        parts := KeyHoldParts(App.keysEdit.Value)
+        if (!parts)                       ; nothing holdable (e.g. empty / multi-key)
+            return
+        try {
+            Send(parts.down)
+        } catch {                         ; invalid key name -> don't hold
+            return
+        }
+        App.held := { kind: "key", up: parts.up }
+        return
+    }
+    btn := App.button.Text                ; mouse click
     pt := App.posFixed.Value ? NextFixedPoint() : ""
     if (pt)
         Click(pt.x " " pt.y " " btn " Down")
     else
         Click(btn " Down")
-    App.held := btn                   ; remember which button to release
+    App.held := { kind: "mouse", button: btn }
 }
 
 ; Release whatever PressDownHeld pressed. Safe to call when nothing is held.
@@ -528,9 +534,12 @@ ReleaseHeld() {
     global App
     if (!App.held)
         return
-    btn := App.held
+    h := App.held
     App.held := ""
-    Click(btn " Up")
+    if (h.kind = "key")
+        Send(h.up)
+    else
+        Click(h.button " Up")
 }
 
 ; The next fixed point to act on: cycle through saved points, or fall back to
@@ -548,17 +557,44 @@ NextFixedPoint() {
     return ""
 }
 
-; Hold is mouse-only, so it never applies in key mode.
 HoldMs() {
     global App
-    if (App.action.Value = 2)
-        return 0
     return App.holdEdit.Value = "" ? 0 : Integer(App.holdEdit.Value)
 }
 
 HoldUntilStopped() {
     global App
-    return App.action.Value != 2 && App.holdCheck.Value
+    return App.holdCheck.Value
+}
+
+; Build the down/up send strings to hold the key field's key. Supports a single
+; key with or without braces ("a", "{Space}", "{w}") plus optional ^ ! + #
+; modifiers ("^c", "!{Tab}"). Modifiers press first and release last. Returns ""
+; when it isn't a holdable single key (empty or a multi-key sequence).
+KeyHoldParts(keys) {
+    static modMap := Map("^","Ctrl", "!","Alt", "+","Shift", "#","LWin")
+    keys := Trim(keys)
+    mods := []
+    while (keys != "" && modMap.Has(SubStr(keys, 1, 1))) {
+        mods.Push(modMap[SubStr(keys, 1, 1)])
+        keys := SubStr(keys, 2)
+    }
+    key := Trim(keys)
+    if (SubStr(key, 1, 1) = "{" && SubStr(key, -1) = "}")   ; {Space} -> Space
+        key := Trim(SubStr(key, 2, StrLen(key) - 2))
+    if (key = "" || RegExMatch(key, "[\^!+#{}\s]"))          ; must be one plain key
+        return ""
+    down := ""
+    for m in mods
+        down .= "{" m " down}"
+    down .= "{" key " down}"
+    up := "{" key " up}"
+    j := mods.Length
+    while (j >= 1) {                        ; release modifiers in reverse order
+        up .= "{" mods[j] " up}"
+        j -= 1
+    }
+    return { down: down, up: up }
 }
 
 ; Release any held key/button before quitting so nothing gets stuck down.
