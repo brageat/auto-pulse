@@ -4,6 +4,14 @@ All the notable stuff that's happened to Auto-Pulse. Version numbers match the
 `VERSION` file the in-app updater checks, so bumping this is what nudges older
 copies to update.
 
+## v1.5.0 — "Quick Draw" (2026-09-18)
+
+### Added
+- **"Press key" button** in Key press mode. No more hand-writing AutoHotkey send
+  syntax or guessing that Tab is `{Tab}` — click **Press key**, press the key you
+  want, and Auto-Pulse captures it (with `^` `!` `+` `#` modifiers) and fills the
+  Key(s) field for you.
+
 ## v1.4.1 (2026-07-24)
 
 ### Fixed

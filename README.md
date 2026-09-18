@@ -37,6 +37,8 @@ repeatedly **click the mouse** or **press keys** on a timer, or **hold** either 
 - **Key press** — type the key(s) to send using AutoHotkey
   [send syntax](https://www.autohotkey.com/docs/v2/lib/Send.htm), e.g. `{Space}`, `{Enter}`,
   `{F5}`, `a`, `^c` (Ctrl+C), `!{Tab}` (Alt+Tab). Keys are sent to the **focused window**.
+  Not sure of the syntax? Click **Press key** and just press the key you want — Auto-Pulse
+  captures it (modifiers included) and fills the field with the correct syntax for you.
 - **Repeat** — run until stopped, or stop automatically after N times.
 - **Dark mode** UI (dark window, inputs, and title bar) — toggle it on/off with the
   **Dark mode** checkbox; your settings are preserved when switching.
@@ -99,7 +101,8 @@ terminal:
    more points: type the X/Y and press **Add**, or press **Pick** (or **F8**) and click the
    target on screen (**Esc** cancels). With more than one point saved, clicks cycle through
    the list in order. Use **Remove**/**Clear** to manage the list.
-   **Key press** — type the **Key(s)** to send (AutoHotkey send syntax, e.g. `{Space}`).
+   **Key press** — type the **Key(s)** to send, or click **Press key** and press the key you
+   want to fill it in automatically (e.g. pressing Tab enters `{Tab}`).
 4. Choose **Until stopped** or **Stop after N times**.
 5. (Optional) Change the start/stop hotkey: press **Set...**, then press the key you want
    (Esc to keep the current one).

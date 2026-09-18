@@ -5,6 +5,7 @@
 ;  Auto-Pulse  -  AutoHotkey v2
 ;  Start/Stop hotkey is configurable (default F6)   F8 = Capture cursor position
 ;  Action mode switches between mouse clicks and key presses.
+;  In key mode, "Press key" captures a key into the Key(s) field for you.
 ;  Hold: "Hold for (ms)" presses-and-holds each pulse; "Hold until stopped"
 ;  presses down on Start and releases on Stop (mouse buttons and keys).
 ;  Dark mode is toggleable via the checkbox.
@@ -17,7 +18,7 @@ CoordMode("Mouse", "Screen")   ; use absolute screen coordinates
 App := { clicking: false, count: 0, dark: true, picking: false, onTop: false,
          positions: [], posIndex: 0, toggleKey: "F6", capturing: false,
          hud: true, clickTimes: [], held: "",
-         version: "1.4.1", updateAvailable: false, latestVersion: "",
+         version: "1.5.0", updateAvailable: false, latestVersion: "",
          updateChecked: false }
 
 ; Where the update checker looks for the latest published version.
@@ -129,14 +130,18 @@ BuildGui() {
     ; Key: keystroke (occupies the same slot as the two mouse groups).
     keyCtrls.Push(g.Add("GroupBox", "x10 y208 w310 h188", "Keystroke"))
     keyCtrls.Push(g.Add("Text", "x22 y234 w55", "Key(s):"))
-    App.keysEdit := g.Add("Edit", "x115 y231 w195 Background" ctrlBg)
+    App.keysEdit := g.Add("Edit", "x115 y231 w105 Background" ctrlBg)
     keyCtrls.Push(App.keysEdit)
-    hint := "Sent to the focused window using AutoHotkey send syntax.`n`n"
-          . "Examples:`n"
+    grabKey := g.Add("Button", "x225 y230 w85 h23", "Press key")
+    grabKey.SetFont("c" btnText)
+    grabKey.OnEvent("Click", CaptureKeyPress)
+    keyCtrls.Push(grabKey)
+    hint := "Not sure of the syntax? Click 'Press key' and`n"
+          . "press the key you want -- it fills in the rest.`n`n"
+          . "Or type it (AutoHotkey send syntax), e.g.:`n"
           . "    {Space}   {Enter}   {Tab}   {F5}`n"
           . "    a    ^c = Ctrl+C    !{Tab} = Alt+Tab`n`n"
-          . "Hold works with one key (e.g. a, {Space}, {w}),`n"
-          . "optionally with ^ ! + # modifiers."
+          . "Hold works with one key (+ ^ ! + # modifiers)."
     keyCtrls.Push(g.Add("Text", "x22 y266 w295 h120", hint))
 
     ; Repeat
@@ -404,6 +409,46 @@ IsModifierKey(k) {
                        "Shift",1, "LShift",1, "RShift",1,
                        "LWin",1, "RWin",1)
     return mods.Has(k)
+}
+
+; "Press key" arms a one-shot capture that fills the Key(s) field with the AHK
+; send syntax for whatever key you press next (with modifiers), so you don't
+; have to know that, say, Tab is "{Tab}". Esc cancels.
+CaptureKeyPress(*) {
+    global App
+    if App.capturing
+        return
+    App.capturing := true
+    App.status.Value := "Press the key to send (Esc to cancel)..."
+
+    ih := InputHook("T10")            ; 10s timeout so we never hang
+    ih.KeyOpt("{All}", "ES")          ; any key ends capture; S = don't pass it through
+    ih.Start()
+    ih.Wait()
+    App.capturing := false
+
+    key := ih.EndKey
+    if (key = "" || key = "Escape") {
+        App.status.Value := "Key capture cancelled"
+        return
+    }
+
+    mods := ""                        ; collapse EndMods to ^ ! + # (same as "Set...")
+    em := ih.EndMods
+    if InStr(em, "^")
+        mods .= "^"
+    if InStr(em, "!")
+        mods .= "!"
+    if InStr(em, "+")
+        mods .= "+"
+    if InStr(em, "#")
+        mods .= "#"
+
+    ; single letter/digit -> bare (a, 5); anything else -> braced ({Tab}, {F5}, {+})
+    keyStr := (StrLen(key) = 1 && RegExMatch(key, "[a-zA-Z0-9]")) ? key : "{" key "}"
+
+    App.keysEdit.Value := mods . keyStr
+    App.status.Value := "Captured: " mods . keyStr
 }
 
 ; ---- Logic ------------------------------------------------
